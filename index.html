@@ -33,13 +33,25 @@
     let isLoading = false;
     let newCount = 0;
 
-    // RSS feeds
+    // REPLACEMENT FEEDS: US Politics & Administration Focus
     const feeds = [
-        { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', name: 'BBC World', priority: 'high' },
-        { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', name: 'NYT World', priority: 'medium' },
-        { url: 'https://feeds.skynews.com/feeds/rss/world.xml', name: 'Sky News', priority: 'high' },
-        { url: 'https://www.aljazeera.com/xml/rss/all.xml', name: 'Al Jazeera', priority: 'medium' },
-        { url: 'https://moxie.foxnews.com/google-publisher/latest.xml', name: 'Fox Latest', priority: 'medium' },
+        // The Hill (Very focused on Congress/White House)
+        { url: 'https://thehill.com/homenews/administration/feed/', name: 'The Hill (Admin)', priority: 'high' },
+        
+        // Politico (Deep political insider news)
+        { url: 'https://rss.politico.com/politics.xml', name: 'Politico', priority: 'high' },
+        
+        // Fox News Politics (US Political section only)
+        { url: 'https://moxie.foxnews.com/google-publisher/politics.xml', name: 'Fox Politics', priority: 'medium' },
+        
+        // CNN Politics (US Political section only)
+        { url: 'http://rss.cnn.com/rss/cnn_allpolitics.rss', name: 'CNN Politics', priority: 'medium' },
+        
+        // CBS News US (General US News, good for big domestic stories)
+        { url: 'https://www.cbsnews.com/latest/rss/us', name: 'CBS US', priority: 'medium' },
+        
+        // RealClearPolitics (Aggregates various political views)
+        { url: 'https://www.realclearpolitics.com/index.xml', name: 'RealClear', priority: 'medium' }
     ];
 
     // UPDATED: Send Telegram notification via Proxy
