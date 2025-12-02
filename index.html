@@ -9,7 +9,7 @@
         body { margin: 0; padding: 0; }
         @keyframes pulse {
             0%, 100% { opacity: 1; }
-            50% { opacity: .5; }
+            50% { opacity: 0.9; }
         }
         .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -22,6 +22,10 @@
     <audio id="alert-sound" src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUKXh8LdnHwU2jdXzzn0vBSF1xe/glEILElyx6OyrWBUIQ5zd8sFuJAUrhM/y2Ik2CBxqvfDknE4MDlCl4fC3Zx8FNo3V8859LwUhdcXv4JRCC"></audio>
 
 <script>
+    // TELEGRAM CONFIG
+    const TELEGRAM_BOT_TOKEN = '8541878030:AAGRa-i2xLns4Pt4MQ--uGgYHFIjnVHaUe4';
+    const TELEGRAM_CHAT_ID = '8588093896';
+
     // State
     let articles = [];
     let seenIds = new Set();
@@ -29,16 +33,45 @@
     let isLoading = false;
     let newCount = 0;
 
-    // UPDATED FEEDS: Real RSS feeds that actually exist
+    // RSS feeds
     const feeds = [
-        { url: 'http://feeds.bbci.co.uk/news/world/rss.xml', name: 'BBC World', priority: 'high' },
+        { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', name: 'BBC World', priority: 'high' },
         { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', name: 'NYT World', priority: 'medium' },
         { url: 'https://feeds.skynews.com/feeds/rss/world.xml', name: 'Sky News', priority: 'high' },
         { url: 'https://www.aljazeera.com/xml/rss/all.xml', name: 'Al Jazeera', priority: 'medium' },
         { url: 'https://moxie.foxnews.com/google-publisher/latest.xml', name: 'Fox Latest', priority: 'medium' },
     ];
 
-    // Utility functions (Kept the same)
+    // Send Telegram notification
+    async function sendTelegramNotification(article) {
+        const message = `🚨 *BREAKING NEWS*\n\n*${article.source}*\n${article.title}\n\n🔗 ${article.link}`;
+        
+        try {
+            const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    chat_id: TELEGRAM_CHAT_ID,
+                    text: message,
+                    parse_mode: 'Markdown',
+                    disable_web_page_preview: false
+                })
+            });
+            
+            const data = await response.json();
+            if (data.ok) {
+                console.log('✅ Telegram notification sent!');
+            } else {
+                console.error('❌ Telegram error:', data);
+            }
+        } catch (error) {
+            console.error('❌ Failed to send Telegram notification:', error);
+        }
+    }
+
+    // Utility functions
     function formatTime(date) {
         const now = new Date();
         const diff = Math.floor((now - date) / 1000);
@@ -61,23 +94,21 @@
         
         const newArticles = [];
         let hasNewItems = false;
+        const newlyFoundArticles = [];
         
-        // This is the magic proxy that fixes the CORS error
         const corsProxy = 'https://api.allorigins.win/get?url=';
 
         for (const feed of feeds) {
             try {
-                // We fetch the proxy, which fetches the RSS for us
                 const response = await fetch(corsProxy + encodeURIComponent(feed.url));
-                const data = await response.json(); // Proxy returns JSON wrapped content
+                const data = await response.json();
                 
-                // Parse the contents inside the proxy response
                 const parser = new DOMParser();
                 const xml = parser.parseFromString(data.contents, 'text/xml');
                 const items = xml.querySelectorAll('item');
 
                 items.forEach((item, index) => {
-                    if (index < 5) { // Limit to top 5 per feed
+                    if (index < 5) {
                         const title = item.querySelector('title')?.textContent || '';
                         const link = item.querySelector('link')?.textContent || '';
                         const pubDateRaw = item.querySelector('pubDate')?.textContent || '';
@@ -99,8 +130,10 @@
                         };
 
                         if (!seenIds.has(id)) {
-                            // Only trigger "New" alerts after the initial load
-                            if (seenIds.size > 0) hasNewItems = true;
+                            if (seenIds.size > 0) {
+                                hasNewItems = true;
+                                newlyFoundArticles.push(article);
+                            }
                             seenIds.add(id);
                         }
 
@@ -112,18 +145,28 @@
             }
         }
 
-        // Sort by time (newest first)
         newArticles.sort((a, b) => b.time - a.time);
         articles = newArticles;
         lastUpdate = new Date();
         isLoading = false;
 
-        if (hasNewItems) {
-            newCount = newArticles.filter(a => a.isNew).length;
+        // Send Telegram notifications for new articles
+        if (hasNewItems && newlyFoundArticles.length > 0) {
+            newCount = newlyFoundArticles.length;
+            
+            // Play sound
             const audio = document.getElementById('alert-sound');
             if (audio) {
-                audio.play().catch(e => console.log('Audio play failed (browser blocked):', e));
+                audio.play().catch(e => console.log('Audio play failed:', e));
             }
+            
+            // Send Telegram notification for each new article
+            for (const article of newlyFoundArticles) {
+                await sendTelegramNotification(article);
+                // Small delay between messages to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
             setTimeout(() => {
                 newCount = 0;
                 render();
@@ -133,7 +176,7 @@
         render();
     }
 
-    // Render UI (Kept mostly the same)
+    // Render UI
     function render() {
         const root = document.getElementById('root');
         
@@ -145,6 +188,7 @@
                             <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/>
                         </svg>
                         <h1 class="text-2xl font-bold">Breaking News Monitor</h1>
+                        <span class="text-xs bg-green-600 px-2 py-1 rounded-full">📱 Telegram Active</span>
                     </div>
                     <button onclick="fetchFeeds()" ${isLoading ? 'disabled' : ''} class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50">
                         <svg class="${isLoading ? 'animate-spin' : ''}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -172,7 +216,7 @@
                                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
                                 <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
                             </svg>
-                            <span class="font-bold">${newCount} New</span>
+                            <span class="font-bold">${newCount} New → Telegram Sent!</span>
                         </div>
                     ` : ''}
                 </div>
@@ -211,6 +255,12 @@
                         </div>
                     </div>
                 `).join('')}
+            </div>
+
+            <div class="max-w-4xl mx-auto mt-8 p-4 bg-gray-800 rounded-lg text-sm text-gray-400">
+                <p class="font-bold text-white mb-2">📱 Telegram Notifications Active!</p>
+                <p class="mb-2">You'll receive instant Telegram messages when breaking news appears.</p>
+                <p class="text-xs">Checks every 60 seconds. Keep this page open for continuous monitoring.</p>
             </div>
         `;
         
