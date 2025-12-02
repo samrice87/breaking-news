@@ -22,7 +22,7 @@
     <audio id="alert-sound" src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUKXh8LdnHwU2jdXzzn0vBSF1xe/glEILElyx6OyrWBUIQ5zd8sFuJAUrhM/y2Ik2CBxqvfDknE4MDlCl4fC3Zx8FNo3V8859LwUhdcXv4JRCC"></audio>
 
 <script>
-    // TELEGRAM CONFIG
+    // TELEGRAM CONFIG (Note: Anyone who sees this file can use this bot)
     const TELEGRAM_BOT_TOKEN = '8541878030:AAGRa-i2xLns4Pt4MQ--uGgYHFIjnVHaUe4';
     const TELEGRAM_CHAT_ID = '8588093896';
 
@@ -42,26 +42,24 @@
         { url: 'https://moxie.foxnews.com/google-publisher/latest.xml', name: 'Fox Latest', priority: 'medium' },
     ];
 
-    // Send Telegram notification
+    // UPDATED: Send Telegram notification via Proxy
     async function sendTelegramNotification(article) {
-        const message = `🚨 *BREAKING NEWS*\n\n*${article.source}*\n${article.title}\n\n🔗 ${article.link}`;
+        // We must encode the message to put it in a URL safely
+        const text = `🚨 *BREAKING NEWS*\n\n*${article.source}*\n${article.title}\n\n🔗 ${article.link}`;
+        const encodedText = encodeURIComponent(text);
         
+        // We construct the Telegram URL manually
+        const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${encodedText}&parse_mode=Markdown`;
+        
+        // We wrap the Telegram URL inside the Proxy URL to bypass CORS
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(telegramUrl)}`;
+
         try {
-            const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    chat_id: TELEGRAM_CHAT_ID,
-                    text: message,
-                    parse_mode: 'Markdown',
-                    disable_web_page_preview: false
-                })
-            });
-            
+            const response = await fetch(proxyUrl);
             const data = await response.json();
-            if (data.ok) {
+            
+            // The proxy returns the status in 'status.http_code'
+            if (data.status.http_code === 200) {
                 console.log('✅ Telegram notification sent!');
             } else {
                 console.error('❌ Telegram error:', data);
@@ -161,10 +159,11 @@
             }
             
             // Send Telegram notification for each new article
+            // NOTE: We execute these sequentially to ensure they don't get blocked by rate limits
             for (const article of newlyFoundArticles) {
                 await sendTelegramNotification(article);
-                // Small delay between messages to avoid rate limiting
-                await new Promise(resolve => setTimeout(resolve, 500));
+                // 1 second delay between messages
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
             
             setTimeout(() => {
@@ -188,7 +187,7 @@
                             <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/>
                         </svg>
                         <h1 class="text-2xl font-bold">Breaking News Monitor</h1>
-                        <span class="text-xs bg-green-600 px-2 py-1 rounded-full">📱 Telegram Active</span>
+                        <span class="text-xs bg-green-600 px-2 py-1 rounded-full animate-pulse">Telegram Linked</span>
                     </div>
                     <button onclick="fetchFeeds()" ${isLoading ? 'disabled' : ''} class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50">
                         <svg class="${isLoading ? 'animate-spin' : ''}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -216,7 +215,7 @@
                                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
                                 <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
                             </svg>
-                            <span class="font-bold">${newCount} New → Telegram Sent!</span>
+                            <span class="font-bold">${newCount} New → Sent to Telegram</span>
                         </div>
                     ` : ''}
                 </div>
